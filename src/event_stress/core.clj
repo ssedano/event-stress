@@ -7,14 +7,9 @@
             [langohr.queue :as lq]
             [clj-time.core :as t]
             [clj-time.coerce :as r])
-  (:import com.abiquo.event.model.enumerations.Severity
-           com.abiquo.event.model.enumerations.EntityAction)
-  (:use [clojure.string :only [lower-case capitalize]]))
-
-
-(def exchange "abiquo.tracer")
-
-(def queue "abiquo.tracer.traces")
+  (:import (com.abiquo.event.model.enumerations Severity EntityAction))
+  (:use [clojure.string :only [split capitalize lower-case]]
+        [cheshire.core :only [generate-string]]))
 
 (def entities (map #(.getSimpleName %) (remove #(or (.isEnum %) (= (.getSimpleName %) "") (= (.getSimpleName %) "Action")) (.getDeclaredClasses EntityAction))))
 
@@ -22,7 +17,7 @@
 
 (def package "com.abiquo.event.model.enumerations.EntityAction$")
 
-(defn user [] (rand-nth ["SYSTEM", (str "/admin/enterprises/1/users/" (rand-int 10))]))
+(defn user [] (rand-nth ["SYSTEM", (str "/admin/enterprises/" (rand-int 10) "/users/" (rand-int 10))]))
 
 (defn severity [] (rand-nth (Severity/values)))
 
@@ -35,6 +30,10 @@
 (defn entity-id [en]
   (str "/admin/" (lower-case en) "/" (rand-int 10)))
 
+(defn enterprise [u]
+  (if (= u "SYSTEM")
+    "SYSTEM"
+    (first (split u #"/users/"))))
 
 (defn details [sev ent act]
   (let [m (str "get" (capitalize (lower-case sev)) "keys")
@@ -44,20 +43,18 @@
         method (. field get m)
         fields (. (. method getClass) getDeclaredMethod m nil)
         k (map #(.name %) (. fields invoke method (make-array Object 0)))]
-    (vec (interleave (take (count k) (repeatedly #(str (rand-int 100)))) (repeat (count k) ",")))))
+    (generate-string (zipmap k (seq (repeatedly #(rand-int 100)))))))
 
 (defn event [] 
   (let [e (rand-nth entities)
-        a (action e)
-        s (severity)
-        d (details s e a)]
-    (str "{\"timestamp\":" (r/to-long (t/now)) ",\"user\":\"" (user) "\", \"enterprise\":\"" (user) "\",\"severity\":\"" s "\",\"source\":\"ABIQUO_SERVER\",\"action\":\"" a "\",\"type\":\"" e "\",\"entityIdentifier\":\"" (entity-id e) "\",\"details\":{\"detail\": " d "}}")))
+        u (user)]
+    (str "{\"timestamp\":" (r/to-long (t/now)) ",\"user\":\"" u "\", \"enterprise\":\"" (enterprise u) "\",\"severity\":\"" (severity) "\",\"source\":\"ABIQUO_SERVER\",\"action\":\"" (action e) "\",\"type\":\"" e "\",\"entityIdentifier\":\"" (entity-id e) "\",\"details\":{\"detail\": []}}")))
 
 (defn stress [n]
   (let [conn (rmq/connect)
         ch (lch/open conn)]
     (dotimes [i n]
-      (lb/publish ch exchange queue (event) :content-type "text/plain"))))
+      (lb/publish ch "abiquo.tracer" "abiquo.tracer.traces" (event) :content-type "text/plain"))))
 
 (defn -main
   "I don't do a whole lot ... yet."
@@ -69,4 +66,4 @@
     (time
       (stress n))
     (System/exit 0)))
-  (event)
+

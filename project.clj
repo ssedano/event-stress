@@ -6,6 +6,7 @@
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [com.novemberain/langohr "1.0.0-beta13" :exclusions [com.google.guava/guava]]
                  [clj-time "0.5.0"]
-                 [com.abiquo/event-model-transport "1.0-SNAPSHOT"]]
+                 [com.abiquo/event-model-transport "1.0-SNAPSHOT"]
+                 [cheshire "5.1.1"]]
   :jvm-opts ["-XX:+TieredCompilation" "-XX:TieredStopAtLevel=1"]
   :main event-stress.core)
